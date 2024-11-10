@@ -1,0 +1,105 @@
+import React, { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
+import ReactJson from 'react-json-view';
+import JSONFormatter from "json-formatter-js";
+
+
+function Start() {
+  const [jsonData, setJsonData] = useState(null);
+  const [file, setFile] = useState(null);
+  const [error, setError] = useState('');
+  const formatterRef = useRef(null);
+
+  useEffect(() => {
+    const myJSON = {name: 'John Doe',age: 30,address: {street: '123 Main St',city: 'New York',}};
+
+
+    const formatter = new JSONFormatter(myJSON);
+
+    if (formatterRef.current) {
+      formatterRef.current.appendChild(formatter.render());
+    }
+
+    return () => {
+      if (formatterRef.current) {
+        formatterRef.current.innerHTML = '';
+      }
+    };
+  }, []);
+
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === 'application/json') {
+      setError('');
+      const formData = new FormData();
+      formData.append('jsonFile', file);
+
+      try {
+        const response = await axios.post('http://localhost:5000/upload', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        setJsonData(JSON.parse(response.data.formattedJson));
+        setFile(response.data.filePath);
+      } catch (err) {
+        setError('Error uploading file. Please ensure it is a valid JSON file.');
+      }
+    } else {
+      setError('Please upload a valid JSON file.');
+    }
+  };
+
+
+  const handleJsonChange = (edit) => {
+    setJsonData(edit.updated_src);
+  };
+
+  
+  const handleDownload = async () => {
+    try {
+      
+      const response = await axios.post('http://localhost:5000/save-edited-json', {
+        jsonData: jsonData,
+      }, { responseType: 'blob' });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.setAttribute('download', 'edited-file.json');
+      document.body.appendChild(a);
+      a.click();
+    } catch (err) {
+      setError('Error downloading the file.');
+    }
+  };
+
+  return (
+    <div className="App">
+      <h1>JSON Formatter</h1>
+      <input type="file" accept=".json" onChange={handleFileUpload} />
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+
+      {jsonData && (
+        <>
+          <h2>Formatted JSON</h2>
+          <ReactJson
+            src={jsonData}
+            onEdit={handleJsonChange}
+            enableClipboard={false}
+            displayDataTypes={false}
+            iconStyle="square"
+            theme="monokai"
+          />
+          <button onClick={handleDownload}>Download Edited JSON</button>
+        </>
+      )}
+      <br />
+      <h1>json formatter different</h1>
+      <div id="json-formatter-js" ref={formatterRef}></div>
+    </div>
+  );
+}
+
+export default Start;
